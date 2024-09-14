@@ -76,12 +76,19 @@ class workstationController extends Controller
             ->where('DIASEM', $req->input('DIASEM'))
             ->where(function ($query) use ($req) {
                 // Condición 1: El INICIO de algún registro está dentro del nuevo intervalo
-                $query->whereTime('INICIO', '<=', $req->input('FIN'). ":00:00")
-                    ->whereTime('FIN', '>=', $req->input('INICIO'). ":00:00");
+                $query->whereTime('INICIO', '<=', $req->input('FIN') . ":00:00")
+                      ->whereTime('FIN', '>=', $req->input('INICIO') . ":00:00");
+
                 // Condición 2: El FIN de algún registro está dentro del nuevo intervalo
                 $query->orWhere(function ($subquery) use ($req) {
-                    $subquery->whereTime('INICIO', '<=', $req->input('FIN'). ":00:00")
-                            ->whereTime('FIN', '>=', $req->input('INICIO'). ":00:00");
+                    $subquery->whereTime('INICIO', '<=', $req->input('FIN') . ":00:00")
+                             ->whereTime('FIN', '>=', $req->input('INICIO') . ":00:00");
+                });
+
+                // Condición 3: Si el INICIO del nuevo turno es menor o igual al INICIO de algún turno existente
+                $query->orWhere(function ($subquery) use ($req) {
+                    $subquery->whereTime('INICIO', '>=', $req->input('INICIO') . ":00:00")
+                             ->whereTime('INICIO', '<=', $req->input('FIN') . ":00:00");
                 });
             })
             ->where('ID', '!=', $id)
@@ -116,7 +123,32 @@ class workstationController extends Controller
     public function postWsTurnoAdd(Request $req){
 
         $last_id = (int) POP_WSTURNO::orderBy('ID', 'desc')->get()->first()->ID + 1;
+        $turno = POP_WSTURNO::where('WS_ID', $req->input('WS_ID'))
+            ->where('DIASEM', $req->input('DIASEM'))
+            ->where(function ($query) use ($req) {
+                // Condición 1: El INICIO de algún registro está dentro del nuevo intervalo
+                $query->whereTime('INICIO', '<=', $req->input('FIN') . ":00:00")
+                      ->whereTime('FIN', '>=', $req->input('INICIO') . ":00:00");
 
+                // Condición 2: El FIN de algún registro está dentro del nuevo intervalo
+                $query->orWhere(function ($subquery) use ($req) {
+                    $subquery->whereTime('INICIO', '<=', $req->input('FIN') . ":00:00")
+                             ->whereTime('FIN', '>=', $req->input('INICIO') . ":00:00");
+                });
+
+                // Condición 3: Si el INICIO del nuevo turno es menor o igual al INICIO de algún turno existente
+                $query->orWhere(function ($subquery) use ($req) {
+                    $subquery->whereTime('INICIO', '>=', $req->input('INICIO') . ":00:00")
+                             ->whereTime('INICIO', '<=', $req->input('FIN') . ":00:00");
+                });
+            })
+            ->where('ID', '!=', $req->input('ID'))
+            ->get();
+
+        if(count($turno) > 0) {
+            return response()->json(['success'=> false, 'message'=> 'Las fechas se juntan con otro horario'], 500);
+        }
+        
 
         $id = DB::table('POP_WSTURNO')->insertGetId([
             'ID' => $last_id,
